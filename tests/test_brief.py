@@ -42,7 +42,7 @@ def test_linkify_uses_source_names_and_joins_adjacent_refs():
 
 
 def test_linkify_numbers_repeated_sources_within_a_group():
-    idx = dict(IDX, 3={"url": "https://u3", "source": "WSJ", "title": "c"})
+    idx = {**IDX, 3: {"url": "https://u3", "source": "WSJ", "title": "c"}}
     assert brief.linkify("A [1][3][2]", idx) == "A [WSJ](https://u1) · [WSJ 2](https://u3) · [FT](https://u2)"
     assert brief.linkify("A [1] B [3]", idx) == "A [WSJ](https://u1) B [WSJ](https://u3)"
 
