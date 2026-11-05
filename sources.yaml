@@ -1,0 +1,95 @@
+# Daily news sources.
+# feeds:   RSS/Atom URLs (verified 2026-11-05 unless marked otherwise)
+# queries: Google News RSS searches; each becomes one feed.
+#          A query can be a string or {q: "...", lang: "zh-CN", country: "CN"}.
+
+categories:
+  - key: us
+    name: 美国经济、金融、政治
+    feeds:
+      - {name: WSJ Markets, url: https://feeds.a.dj.com/rss/RSSMarketsMain.xml}
+      - {name: FT, url: https://www.ft.com/rss/home}
+      - {name: NYT Business, url: https://rss.nytimes.com/services/xml/rss/nyt/Business.xml}
+      - {name: MarketWatch, url: https://feeds.content.dowjones.io/public/rss/mw_topstories}
+      - {name: Federal Reserve, url: https://www.federalreserve.gov/feeds/press_all.xml}
+      - {name: BEA, url: https://apps.bea.gov/rss/rss.xml}
+      - {name: Politico, url: https://rss.politico.com/politics-news.xml}
+      - {name: Economist Finance, url: https://www.economist.com/finance-and-economics/rss.xml}
+      - {name: Marginal Revolution, url: https://marginalrevolution.com/feed}
+      - {name: Noahpinion, url: https://www.noahpinion.blog/feed}
+      - {name: Calculated Risk, url: https://www.calculatedriskblog.com/feeds/posts/default}
+      # unverified from the build environment (403 behind proxy), expected to work elsewhere
+      - {name: BLS Employment Situation, url: https://www.bls.gov/feed/news_release/empsit.rss}
+      - {name: Axios, url: https://api.axios.com/feed/}
+    queries:
+      - Federal Reserve
+      - Treasury yields
+      - US tariffs
+
+  - key: china
+    name: 海外媒体对中国的政经报道
+    feeds:
+      - {name: SCMP China, url: https://www.scmp.com/rss/4/feed}
+      - {name: Nikkei Asia, url: https://asia.nikkei.com/rss/feed/nar}
+      - {name: 端传媒, url: https://theinitium.com/feed}
+      - {name: ChinaTalk, url: https://www.chinatalk.media/feed}
+      - {name: Pekingnology, url: https://www.pekingnology.com/feed}
+      - {name: China Digital Times, url: https://www.chinadigitaltimes.net/feed/}
+    queries:
+      - China economy
+      - China exports
+      - {q: 中国 经济, lang: zh-TW, country: TW}
+
+  - key: games
+    name: 游戏产业
+    feeds:
+      - {name: GamesIndustry.biz, url: https://www.gamesindustry.biz/feed}
+      - {name: Game Developer, url: https://www.gamedeveloper.com/rss.xml}
+      - {name: PC Gamer, url: https://www.pcgamer.com/rss/}
+      - {name: Rock Paper Shotgun, url: https://www.rockpapershotgun.com/feed}
+      - {name: Polygon, url: https://www.polygon.com/rss/index.xml}
+      - {name: ACE3 releases, url: https://github.com/acemod/ACE3/releases.atom}
+      - {name: Arma 3 Steam news, url: https://store.steampowered.com/feeds/news/app/107410/}
+    queries:
+      - Arma Reforger
+      - game AI NPC LLM
+
+  - key: academic
+    name: 数据科学与 AI 学界
+    feeds:
+      - {name: arXiv cs.AI, url: https://rss.arxiv.org/rss/cs.AI}
+      - {name: arXiv cs.LG, url: https://rss.arxiv.org/rss/cs.LG}
+      - {name: arXiv stat.ML, url: https://rss.arxiv.org/rss/stat.ML}
+      - {name: arXiv cs.MA, url: https://rss.arxiv.org/rss/cs.MA}
+      - {name: Statistical Modeling (Gelman), url: https://statmodeling.stat.columbia.edu/feed/}
+      - {name: Hacker News arXiv, url: "https://hnrss.org/newest?q=arxiv&points=20"}
+    queries: []
+
+  - key: ai_industry
+    name: AI 产业
+    feeds:
+      - {name: OpenAI News, url: https://openai.com/news/rss.xml}
+      - {name: Google AI Blog, url: https://blog.google/technology/ai/rss/}
+      - {name: Hugging Face Blog, url: https://huggingface.co/blog/feed.xml}
+      - {name: TechCrunch AI, url: https://techcrunch.com/category/artificial-intelligence/feed/}
+      - {name: The Verge AI, url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml}
+      - {name: Simon Willison, url: https://simonwillison.net/atom/everything/}
+      - {name: Import AI, url: https://importai.substack.com/feed}
+      - {name: Interconnects, url: https://www.interconnects.ai/feed}
+      - {name: Ahead of AI, url: https://magazine.sebastianraschka.com/feed}
+      - {name: Latent Space, url: https://www.latent.space/feed}
+      - {name: SemiAnalysis, url: https://semianalysis.com/feed/}
+      - {name: Hacker News front page, url: https://hnrss.org/frontpage}
+    queries:
+      - Anthropic
+      - humanoid robot
+
+  - key: entertainment
+    name: 情感与娱乐
+    feeds:
+      - {name: Variety, url: https://variety.com/feed/}
+      - {name: Hollywood Reporter, url: https://www.hollywoodreporter.com/feed/}
+      - {name: Deadline, url: https://deadline.com/feed/}
+      - {name: r/CharacterAI, url: https://www.reddit.com/r/CharacterAI/.rss}
+      - {name: r/replika, url: https://www.reddit.com/r/replika/.rss}
+    queries: []
