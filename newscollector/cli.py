@@ -50,27 +50,30 @@ def write_digest(config: str, db: str, out_dir: str, day: str | None = None) -> 
     return path
 
 
-def write_brief(config: str, db: str, out_dir: str, day: str | None = None,
-                max_input: int = 100) -> str | None:
-    """Ask Claude for a briefing of the day's items. Needs ANTHROPIC_API_KEY; BRIEF_MODEL optional."""
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        log.warning("brief: ANTHROPIC_API_KEY not set, skipping")
-        return None
+def brief_input(config: str, db: str, briefs_dir: str, day: str | None = None,
+                max_per_category: int = 100) -> str:
+    """Print the day's items as a numbered list for the briefing writer; save the link index."""
     day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     names = load_categories(config)
     conn = store.connect(db)
     rows = store.items_fetched_on(conn, day)
     conn.close()
-    if not rows:
-        log.warning("brief: no items for %s, skipping", day)
-        return None
-    model = os.environ.get("BRIEF_MODEL") or brief.MODEL
-    md = brief.write_brief(day, rows, names, max_input, model)
-    os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, f"{day}.md")
+    text, index = brief.listing(day, rows, names, max_per_category)
+    brief.save_index(briefs_dir, day, index)
+    log.info("brief-input: %d items for %s, index saved", len(index), day)
+    return text
+
+
+def brief_link(briefs_dir: str, day: str | None = None) -> str:
+    """Replace [n] references in briefs/<day>.md with links from the saved index."""
+    day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    path = os.path.join(briefs_dir, f"{day}.md")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    linked = brief.linkify(text, brief.load_index(briefs_dir, day))
     with open(path, "w", encoding="utf-8") as f:
-        f.write(md)
-    log.info("brief: %s (%d items in, model %s)", path, len(rows), model)
+        f.write(linked)
+    log.info("brief-link: %s", path)
     return path
 
 
@@ -108,7 +111,7 @@ def email_digest(config: str, db: str, day: str | None = None, max_per_category:
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="newscollector")
-    p.add_argument("command", choices=["collect", "digest", "run", "brief", "email"])
+    p.add_argument("command", choices=["collect", "digest", "run", "brief-input", "brief-link", "email"])
     p.add_argument("--config", default="sources.yaml")
     p.add_argument("--db", default="data/news.db")
     p.add_argument("--out", default="digests")
@@ -116,7 +119,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--date", help="digest day, YYYY-MM-DD (UTC); default today")
     p.add_argument("--only", help="collect a single category key")
     p.add_argument("--max", type=int, default=15, help="email: items per category")
-    p.add_argument("--max-input", type=int, default=100, help="brief: items per category sent to the model")
+    p.add_argument("--max-input", type=int, default=100, help="brief-input: items per category")
     p.add_argument("-v", "--verbose", action="store_true")
     a = p.parse_args(argv)
 
@@ -127,8 +130,10 @@ def main(argv: list[str] | None = None) -> None:
         collect(a.config, a.db, a.only)
     if a.command in ("digest", "run"):
         write_digest(a.config, a.db, a.out, a.date)
-    if a.command == "brief":
-        write_brief(a.config, a.db, a.briefs, a.date, a.max_input)
+    if a.command == "brief-input":
+        print(brief_input(a.config, a.db, a.briefs, a.date, a.max_input))
+    if a.command == "brief-link":
+        brief_link(a.briefs, a.date)
     if a.command == "email":
         email_digest(a.config, a.db, a.date, a.max, a.briefs)
 

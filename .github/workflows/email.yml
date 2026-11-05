@@ -1,0 +1,35 @@
+name: email
+
+# Runs when a briefing is pushed (by the scheduled Claude session), or by hand.
+on:
+  push:
+    paths:
+      - "briefs/*.md"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Day to send, YYYY-MM-DD (UTC); empty = today"
+        required: false
+
+env:
+  MAIL_USER: ${{ secrets.MAIL_USER || secrets.GMAIL_USER }}
+  MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD || secrets.GMAIL_APP_PASSWORD }}
+  MAIL_TO: ${{ secrets.MAIL_TO }}
+  SMTP_HOST: ${{ secrets.SMTP_HOST }}   # e.g. smtp.163.com; empty = smtp.gmail.com
+  SMTP_PORT: ${{ secrets.SMTP_PORT }}   # empty = 465
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Email brief and digest
+        run: |
+          DAY="${{ github.event.inputs.date }}"
+          DAY="${DAY:-$(date -u +%F)}"
+          export DIGEST_URL="${{ github.server_url }}/${{ github.repository }}/blob/main/digests/$DAY.md"
+          newscollector email --date "$DAY"

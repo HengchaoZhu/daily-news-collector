@@ -29,25 +29,28 @@ newscollector digest --date 2026-11-05
 
 ## 自动化
 
-`.github/workflows/daily.yml` 每天 06:17（北京时间）在 GitHub Actions 上跑一次，把日报和数据库提交回仓库。GitHub 的 runner 在海外，所以 Google News、Reddit 这类从国内不稳定的源不受影响。手动触发在 Actions 页面点 `Run workflow`。
+`.github/workflows/daily.yml` 每天 06:17（北京时间）在 GitHub Actions 上跑一次，把日报和数据库提交回仓库。GitHub 的 runner 在海外，所以 Google News、Reddit 这类从国内不稳定的源不受影响。手动触发在 Actions 页面点 `Run workflow`。简报和邮件见下面"每天的流程"。
 
-## Claude 简报
+## 每天的流程
 
-`newscollector brief` 把当天的条目（每类最多 100 条，标题加摘要前 120 字）交给 Claude，写一份中文简报：今日要点、分类要点、值得深挖，每条带编号链接回原文。输出在 `briefs/YYYY-MM-DD.md`，邮件里排在日报前面。
+1. **06:17 北京时间**，GitHub Actions（`daily.yml`）抓取全部信源，提交 `digests/YYYY-MM-DD.md` 和数据库。
+2. **06:45**，一个 Claude Code 定时任务开一个新会话：拉仓库，用 `newscollector brief-input` 读当天条目，写 `briefs/YYYY-MM-DD.md`，用 `newscollector brief-link` 把编号变成链接，提交并推送。不用 API key，用的是 Claude 订阅。
+3. 简报推上来触发 `email.yml`，把简报加日报发到邮箱。
 
-需要一个 secret：`ANTHROPIC_API_KEY`，在 https://console.anthropic.com 创建，和 Claude.ai 订阅是两回事。没有这个 secret 时简报步骤自动跳过。
+简报的结构：今日要点（5 到 8 条）、每个类别 3 到 6 条、值得深挖（2 到 3 条），每条引用条目编号 `[n]`，`brief-link` 之后编号就是原文链接。
 
-默认模型 `claude-opus-5-5`，请求开启了服务端 fallback，模型因安全策略拒答时会自动换一个模型重试。每天的输入约三四万 token，按目前价格大约 0.2 美元一天。想便宜一半，加 secret `BRIEF_MODEL=claude-sonnet-5-5`。
-
-本地跑一次：
+给 Claude 会话用的两个命令：
 
 ```bash
-ANTHROPIC_API_KEY=... newscollector brief --date 2026-11-05
+newscollector brief-input --date 2026-11-05   # 打印编号清单（每类最多 100 条，不含 URL），保存编号到 URL 的索引
+newscollector brief-link --date 2026-11-05    # 把 briefs/2026-11-05.md 里的 [n] 替换成链接
 ```
+
+某天 Claude 任务没跑成功，就不会有邮件；在 Actions 页面手动跑 `email` 工作流可以只发日报。
 
 ## 邮件推送
 
-工作流跑完后可以把日报通过 SMTP 发到邮箱，Gmail、163、QQ 邮箱都行，不需要第三方服务。
+邮件通过 SMTP 发，Gmail、163、QQ 邮箱都行，不需要第三方服务。
 
 仓库 Settings → Secrets and variables → Actions，添加：
 

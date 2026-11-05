@@ -1,4 +1,4 @@
-"""Briefing: prompt building, reference linking, CLI gating. The model call is mocked."""
+"""Briefing helpers: numbered listing, link index round trip, email prepends the brief."""
 
 from datetime import datetime, timezone
 
@@ -17,21 +17,22 @@ def _rows(tmp_path):
     return conn, store.items_fetched_on(conn, "2026-11-05")
 
 
-def test_build_prompt_numbers_items_and_skips_empty_categories(tmp_path):
+def test_listing_numbers_items_and_skips_empty_categories(tmp_path):
     _, rows = _rows(tmp_path)
-    prompt, index = brief.build_prompt("2026-11-05", rows, NAMES)
-    assert prompt.startswith("日期：2026-11-05")
-    assert "### 美国" in prompt and "### 游戏" in prompt and "### 学界" not in prompt
-    assert "[1] (Mock) Treasury yields fall" in prompt  # newest published first
-    assert "[2] (Mock) Fed holds rates steady — The Fed held." in prompt
-    assert set(index) == {1, 2, 3}
-    assert index[3] == "https://g.example.com/arma"
+    text, index = brief.listing("2026-11-05", rows, NAMES)
+    assert text.startswith("日期：2026-11-05")
+    assert "### 美国" in text and "### 游戏" in text and "### 学界" not in text
+    assert "[1] (Mock) Treasury yields fall" in text  # newest published first
+    assert "[2] (Mock) Fed holds rates steady — The Fed held." in text
+    assert "http" not in text  # URLs stay in the index, not the listing
+    assert index == {1: "https://news.example.com/yields", 2: "https://news.example.com/fed?utm_source=rss",
+                     3: "https://g.example.com/arma"}
 
 
-def test_build_prompt_caps_per_category(tmp_path):
+def test_listing_caps_per_category(tmp_path):
     _, rows = _rows(tmp_path)
-    prompt, index = brief.build_prompt("2026-11-05", rows, NAMES, max_per_category=1)
-    assert set(index) == {1, 2}  # one from 美国, one from 游戏
+    _, index = brief.listing("2026-11-05", rows, NAMES, max_per_category=1)
+    assert set(index) == {1, 2}
 
 
 def test_linkify_only_known_refs():
@@ -39,23 +40,7 @@ def test_linkify_only_known_refs():
     assert out == "A [1](https://u1)[2](https://u2) B [9] C [1](https://x) D"
 
 
-def test_write_brief_links_refs(monkeypatch, tmp_path):
-    _, rows = _rows(tmp_path)
-    monkeypatch.setattr(brief, "complete", lambda system, prompt, model: "## 今日要点\n\n- 美联储按兵不动 [1]。\n")
-    md = brief.write_brief("2026-11-05", rows, NAMES)
-    assert md.startswith("# 简报 2026-11-05\n\n## 今日要点")
-    assert "[1](https://news.example.com/yields)" in md
-
-
-def test_cli_brief_skips_without_key(monkeypatch, tmp_path, caplog):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    cfg = tmp_path / "s.yaml"
-    cfg.write_text("categories: []\n", encoding="utf-8")
-    assert cli.write_brief(str(cfg), str(tmp_path / "n.db"), str(tmp_path / "b")) is None
-    assert "skipping" in caplog.text
-
-
-def test_cli_brief_writes_file_and_email_prepends_it(monkeypatch, tmp_path):
+def test_cli_input_then_link_round_trip_and_email_prepends(monkeypatch, tmp_path):
     conn, _ = _rows(tmp_path)
     conn.close()
     cfg = tmp_path / "s.yaml"
@@ -63,20 +48,21 @@ def test_cli_brief_writes_file_and_email_prepends_it(monkeypatch, tmp_path):
         "categories:\n  - key: us\n    name: 美国\n    feeds: []\n  - key: games\n    name: 游戏\n    feeds: []\n",
         encoding="utf-8",
     )
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
-    monkeypatch.setenv("BRIEF_MODEL", "claude-opus-5-5")
-    seen = {}
-    monkeypatch.setattr(brief, "complete", lambda system, prompt, model: seen.update(model=model) or "- 要点 [2]。")
-    path = cli.write_brief(str(cfg), str(tmp_path / "t.db"), str(tmp_path / "b"), day="2026-11-05")
-    assert path.endswith("2026-11-05.md") and seen["model"] == "claude-opus-5-5"
-    text = open(path, encoding="utf-8").read()
-    assert "[2](https://news.example.com/fed?utm_source=rss)" in text
+    briefs = tmp_path / "briefs"
+    text = cli.brief_input(str(cfg), str(tmp_path / "t.db"), str(briefs), day="2026-11-05")
+    assert "[3] (PC Gamer) Arma AI squad update" in text
+    assert (briefs / ".index" / "2026-11-05.json").exists()
+
+    (briefs / "2026-11-05.md").write_text("# 简报 2026-11-05\n\n- 要点 [2][3]。\n", encoding="utf-8")
+    cli.brief_link(str(briefs), day="2026-11-05")
+    linked = (briefs / "2026-11-05.md").read_text(encoding="utf-8")
+    assert "[2](https://news.example.com/fed?utm_source=rss)[3](https://g.example.com/arma)" in linked
 
     sent = {}
     monkeypatch.setenv("MAIL_USER", "me@gmail.com")
     monkeypatch.setenv("MAIL_PASSWORD", "pw")
     monkeypatch.setattr("newscollector.mail.send", lambda msg, host, port, user, pw: sent.update(msg=msg))
-    cli.email_digest(str(cfg), str(tmp_path / "t.db"), day="2026-11-05", briefs_dir=str(tmp_path / "b"))
+    cli.email_digest(str(cfg), str(tmp_path / "t.db"), day="2026-11-05", briefs_dir=str(briefs))
     body = sent["msg"].get_body(("plain",)).get_content()
     assert body.startswith("# 简报 2026-11-05")
     assert "\n---\n" in body and "# Daily news 2026-11-05" in body
