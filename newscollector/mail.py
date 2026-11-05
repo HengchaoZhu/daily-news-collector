@@ -91,7 +91,7 @@ def _digest_blocks(md: str) -> list[str]:
             )
         elif line.startswith("- "):
             out.append(f'<div style="{_S["more"]}">{html.escape(line[2:])}</div>')
-        elif line.startswith("Full digest:") or re.match(r"^\d+ new items", line):
+        elif line.startswith("完整日报：") or line.startswith("今日新收"):
             continue
         else:
             out.append(f'<p style="{_S["para"]}">{_inline(line)}</p>')
@@ -100,7 +100,7 @@ def _digest_blocks(md: str) -> list[str]:
 
 def render_email(day: str, brief_md: str | None, digest_md: str, digest_url: str | None = None) -> str:
     parts = [
-        f'<p style="{_S["kicker"]}">Daily brief</p>',
+        f'<p style="{_S["kicker"]}">每日简报</p>',
         f'<h1 style="{_S["title"]}">{html.escape(day)}</h1>',
     ]
     if brief_md:

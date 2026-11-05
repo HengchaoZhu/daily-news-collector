@@ -81,15 +81,17 @@ def email_digest(config: str, db: str, day: str | None = None, max_per_category:
                  briefs_dir: str = "briefs") -> None:
     """Email the day's briefing (if one exists) plus a shortened digest over SMTP.
 
-    Env: MAIL_USER, MAIL_PASSWORD (required), MAIL_TO (default MAIL_USER),
-    SMTP_HOST (default smtp.gmail.com), SMTP_PORT (default 465, SSL).
+    Env: MAIL_USER, MAIL_PASSWORD (required), MAIL_TO (comma-separated, default MAIL_USER),
+    MAIL_TO_EXTRA (more comma-separated recipients), SMTP_HOST (default smtp.gmail.com),
+    SMTP_PORT (default 465, SSL).
     """
     user = os.environ.get("MAIL_USER")
     password = os.environ.get("MAIL_PASSWORD")
     if not user or not password:
         log.warning("email: MAIL_USER / MAIL_PASSWORD not set, skipping")
         return
-    to = os.environ.get("MAIL_TO") or user
+    raw = (os.environ.get("MAIL_TO") or user) + "," + (os.environ.get("MAIL_TO_EXTRA") or "")
+    to = ", ".join(dict.fromkeys(a.strip() for a in raw.split(",") if a.strip()))
     host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
     port = int(os.environ.get("SMTP_PORT") or 465)
     day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -106,7 +108,7 @@ def email_digest(config: str, db: str, day: str | None = None, max_per_category:
             brief_md = f.read().rstrip()
     text = digest_md
     if digest_url:
-        text = text.replace("\n\n", f"\n\nFull digest: {digest_url}\n\n", 1)
+        text = text.replace("\n\n", f"\n\n完整日报：{digest_url}\n\n", 1)
     if brief_md:
         text = brief_md + "\n\n---\n\n" + text
     html_body = mail.render_email(day, brief_md, digest_md, digest_url)

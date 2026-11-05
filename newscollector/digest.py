@@ -25,9 +25,9 @@ def build_markdown(day: str, rows, category_names: dict[str, str], max_per_categ
     for r in rows:
         by_cat[r["category"]].append(r)
 
-    lines = [f"# Daily news {day}", ""]
+    lines = [f"# 日报 {day}", ""]
     total = sum(len(v) for v in by_cat.values())
-    lines.append(f"{total} new items across {len(by_cat)} categories.")
+    lines.append(f"今日新收 {total} 条，{len(by_cat)} 个类别。")
     lines.append("")
 
     for key, name in category_names.items():
@@ -40,6 +40,6 @@ def build_markdown(day: str, rows, category_names: dict[str, str], max_per_categ
             title = display_title(r["title"], r["source"])
             lines.append(f"- [{title}]({r['url']}) — {r['source']} · {local_time(r['published'])}")
         if len(items) > max_per_category:
-            lines.append(f"- … {len(items) - max_per_category} more in the database")
+            lines.append(f"- … 另有 {len(items) - max_per_category} 条见完整日报")
         lines.append("")
     return "\n".join(lines)

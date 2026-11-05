@@ -64,7 +64,7 @@ def test_digest_groups_by_category_and_lists_links(tmp_path):
     store.insert_items(conn, fetch.parse_feed(FEED, RSS), now)
     rows = store.items_fetched_on(conn, "2026-11-05")
     md = digest.build_markdown("2026-11-05", rows, {"us": "美国", "games": "游戏"})
-    assert md.startswith("# Daily news 2026-11-05")
+    assert md.startswith("# 日报 2026-11-05")
     assert "## 美国 (2)" in md
     assert "## 游戏" not in md
     assert "[Treasury yields fall](https://news.example.com/yields) — Mock · 2026-11-05 18:00" in md  # 10:00 UTC
@@ -94,7 +94,7 @@ def test_cli_run_with_mocked_network(tmp_path, monkeypatch):
     cli.main(["run", "--config", str(cfg), "--db", str(tmp_path / "n.db"), "--out", str(tmp_path / "d")])
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     md = (tmp_path / "d" / f"{day}.md").read_text(encoding="utf-8")
-    assert "2 new items" in md  # mock feed + the Google News query return the same RSS
+    assert "今日新收 2 条" in md  # mock feed + the Google News query return the same RSS
 
 
 def test_load_feeds_expands_queries(tmp_path):

@@ -1,14 +1,14 @@
 from newscollector import cli, mail
 
-DIGEST = """# Daily news 2026-11-05
+DIGEST = """# 日报 2026-11-05
 
-3 new items across 2 categories.
+今日新收 3 条，2 个类别。
 
 ## 美国 (2)
 
 - [Fed holds <rates>](https://a.example.com/fed?x=1&y=2) — WSJ · 2026-11-05 08:00
 - [Yields fall](https://a.example.com/yields) — FT · 2026-11-05 09:00
-- … 5 more in the database
+- … 另有 5 条见完整日报
 
 ## 游戏 (1)
 
@@ -39,15 +39,15 @@ def test_render_email_structure():
     assert "美国 <span" in h and ">2</span></h2>" in h
     assert 'href="https://a.example.com/fed?x=1&amp;y=2"' in h and "Fed holds &lt;rates&gt;</a>" in h
     assert "WSJ · 08:00" in h and "PC Gamer · 10:00" in h
-    assert "5 more in the database" in h
+    assert "另有 5 条见完整日报" in h
     # footer link, and the "N new items" line is dropped
     assert 'href="https://github.com/x/y/blob/main/digests/2026-11-05.md"' in h
-    assert "3 new items" not in h
+    assert "今日新收" not in h and ">每日简报</p>" in h
 
 
 def test_render_email_without_brief_or_url():
     h = mail.render_email("2026-11-05", None, DIGEST)
-    assert "今日要点" not in h and "完整日报" not in h and "Arma update" in h
+    assert "今日要点" not in h and "github.com" not in h and "Arma update" in h
 
 
 def test_build_message_has_text_and_html_parts():
@@ -82,8 +82,21 @@ def test_email_sends_with_credentials_and_custom_smtp(monkeypatch, tmp_path):
     cli.email_digest(str(cfg), str(tmp_path / "n.db"), day="2026-11-05")
     assert (sent["host"], sent["port"], sent["user"], sent["pw"]) == ("smtp.163.com", 465, "me@163.com", "authcode")
     assert sent["msg"]["From"] == "me@163.com" and sent["msg"]["To"] == "me@gmail.com"
-    assert "Full digest: https://github.com/x/y/blob/main/digests/d.md" in sent["msg"].get_body(("plain",)).get_content()
+    assert "完整日报：https://github.com/x/y/blob/main/digests/d.md" in sent["msg"].get_body(("plain",)).get_content()
     assert "https://github.com/x/y/blob/main/digests/d.md" in sent["msg"].get_body(("html",)).get_content()
+
+
+def test_email_multiple_recipients(monkeypatch, tmp_path):
+    sent = {}
+    monkeypatch.setenv("MAIL_USER", "me@gmail.com")
+    monkeypatch.setenv("MAIL_PASSWORD", "pw")
+    monkeypatch.setenv("MAIL_TO", "a@x.com, me@gmail.com")
+    monkeypatch.setenv("MAIL_TO_EXTRA", "13066032123@163.com,a@x.com")
+    monkeypatch.setattr(mail, "send", lambda msg, host, port, user, pw: sent.update(to=msg["To"]))
+    cfg = tmp_path / "s.yaml"
+    cfg.write_text("categories: []\n", encoding="utf-8")
+    cli.email_digest(str(cfg), str(tmp_path / "n.db"), day="2026-11-05")
+    assert sent["to"] == "a@x.com, me@gmail.com, 13066032123@163.com"
 
 
 def test_email_defaults_to_gmail_smtp(monkeypatch, tmp_path):

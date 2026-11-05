@@ -84,6 +84,6 @@ def test_cli_input_then_link_round_trip_and_email_prepends(monkeypatch, tmp_path
     cli.email_digest(str(cfg), str(tmp_path / "t.db"), day="2026-11-05", briefs_dir=str(briefs))
     body = sent["msg"].get_body(("plain",)).get_content()
     assert body.startswith("# 简报 2026-11-05")
-    assert "\n---\n" in body and "# Daily news 2026-11-05" in body
+    assert "\n---\n" in body and "# 日报 2026-11-05" in body
     html_body = sent["msg"].get_body(("html",)).get_content()
     assert ">PC Gamer</a>" in html_body and "Arma AI squad update</a>" in html_body
