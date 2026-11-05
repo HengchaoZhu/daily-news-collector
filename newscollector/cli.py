@@ -7,7 +7,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from . import digest, fetch, store
+from . import digest, fetch, mail, store
 from .config import load_feeds
 
 log = logging.getLogger("newscollector")
@@ -50,14 +50,36 @@ def write_digest(config: str, db: str, out_dir: str, day: str | None = None) -> 
     return path
 
 
+def email_digest(config: str, db: str, day: str | None = None, max_per_category: int = 15) -> None:
+    """Email a shortened digest via Gmail. Needs GMAIL_USER and GMAIL_APP_PASSWORD; MAIL_TO optional."""
+    user = os.environ.get("GMAIL_USER")
+    password = os.environ.get("GMAIL_APP_PASSWORD")
+    if not user or not password:
+        log.warning("email: GMAIL_USER / GMAIL_APP_PASSWORD not set, skipping")
+        return
+    to = os.environ.get("MAIL_TO") or user
+    day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    names = {f.category_key: f.category_name for f in load_feeds(config)}
+    conn = store.connect(db)
+    rows = store.items_fetched_on(conn, day)
+    conn.close()
+    md = digest.build_markdown(day, rows, names, max_per_category)
+    full = os.environ.get("DIGEST_URL")
+    if full:
+        md = md.replace("\n\n", f"\n\nFull digest: {full}\n\n", 1)
+    mail.send_gmail(mail.build_message(day, md, user, to), user, password)
+    log.info("email: sent %s to %s (%d items)", day, to, len(rows))
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="newscollector")
-    p.add_argument("command", choices=["collect", "digest", "run"])
+    p.add_argument("command", choices=["collect", "digest", "run", "email"])
     p.add_argument("--config", default="sources.yaml")
     p.add_argument("--db", default="data/news.db")
     p.add_argument("--out", default="digests")
     p.add_argument("--date", help="digest day, YYYY-MM-DD (UTC); default today")
     p.add_argument("--only", help="collect a single category key")
+    p.add_argument("--max", type=int, default=15, help="email: items per category")
     p.add_argument("-v", "--verbose", action="store_true")
     a = p.parse_args(argv)
 
@@ -68,6 +90,8 @@ def main(argv: list[str] | None = None) -> None:
         collect(a.config, a.db, a.only)
     if a.command in ("digest", "run"):
         write_digest(a.config, a.db, a.out, a.date)
+    if a.command == "email":
+        email_digest(a.config, a.db, a.date, a.max)
 
 
 if __name__ == "__main__":

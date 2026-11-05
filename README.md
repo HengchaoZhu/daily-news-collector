@@ -31,6 +31,22 @@ newscollector digest --date 2026-11-05
 
 `.github/workflows/daily.yml` 每天 06:17（北京时间）在 GitHub Actions 上跑一次，把日报和数据库提交回仓库。GitHub 的 runner 在海外，所以 Google News、Reddit 这类从国内不稳定的源不受影响。手动触发在 Actions 页面点 `Run workflow`。
 
+## 邮件推送
+
+工作流跑完后可以把日报发到 Gmail。用的是 Gmail SMTP 加应用专用密码，不需要任何第三方服务。
+
+1. Google 账号开启两步验证，然后在 https://myaccount.google.com/apppasswords 生成一个应用专用密码（16 位）。
+2. 仓库 Settings → Secrets and variables → Actions，添加：
+   - `GMAIL_USER`：你的 Gmail 地址
+   - `GMAIL_APP_PASSWORD`：上一步的 16 位密码
+   - `MAIL_TO`：可选，收件地址，不填就发给自己
+
+没有配置 secrets 时邮件步骤自动跳过。邮件里每个类别最多 15 条，开头有完整日报在 GitHub 上的链接。本地手动发一次：
+
+```bash
+GMAIL_USER=... GMAIL_APP_PASSWORD=... newscollector email --date 2026-11-05
+```
+
 ## 测试
 
 ```bash
