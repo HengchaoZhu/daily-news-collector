@@ -51,13 +51,19 @@ def write_digest(config: str, db: str, out_dir: str, day: str | None = None) -> 
 
 
 def email_digest(config: str, db: str, day: str | None = None, max_per_category: int = 15) -> None:
-    """Email a shortened digest via Gmail. Needs GMAIL_USER and GMAIL_APP_PASSWORD; MAIL_TO optional."""
-    user = os.environ.get("GMAIL_USER")
-    password = os.environ.get("GMAIL_APP_PASSWORD")
+    """Email a shortened digest over SMTP.
+
+    Env: MAIL_USER, MAIL_PASSWORD (required), MAIL_TO (default MAIL_USER),
+    SMTP_HOST (default smtp.gmail.com), SMTP_PORT (default 465, SSL).
+    """
+    user = os.environ.get("MAIL_USER")
+    password = os.environ.get("MAIL_PASSWORD")
     if not user or not password:
-        log.warning("email: GMAIL_USER / GMAIL_APP_PASSWORD not set, skipping")
+        log.warning("email: MAIL_USER / MAIL_PASSWORD not set, skipping")
         return
     to = os.environ.get("MAIL_TO") or user
+    host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
+    port = int(os.environ.get("SMTP_PORT") or 465)
     day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     names = {f.category_key: f.category_name for f in load_feeds(config)}
     conn = store.connect(db)
@@ -67,8 +73,8 @@ def email_digest(config: str, db: str, day: str | None = None, max_per_category:
     full = os.environ.get("DIGEST_URL")
     if full:
         md = md.replace("\n\n", f"\n\nFull digest: {full}\n\n", 1)
-    mail.send_gmail(mail.build_message(day, md, user, to), user, password)
-    log.info("email: sent %s to %s (%d items)", day, to, len(rows))
+    mail.send(mail.build_message(day, md, user, to), host, port, user, password)
+    log.info("email: sent %s to %s via %s (%d items)", day, to, host, len(rows))
 
 
 def main(argv: list[str] | None = None) -> None:

@@ -33,18 +33,25 @@ newscollector digest --date 2026-11-05
 
 ## 邮件推送
 
-工作流跑完后可以把日报发到 Gmail。用的是 Gmail SMTP 加应用专用密码，不需要任何第三方服务。
+工作流跑完后可以把日报通过 SMTP 发到邮箱，Gmail、163、QQ 邮箱都行，不需要第三方服务。
 
-1. Google 账号开启两步验证，然后在 https://myaccount.google.com/apppasswords 生成一个应用专用密码（16 位）。
-2. 仓库 Settings → Secrets and variables → Actions，添加：
-   - `GMAIL_USER`：你的 Gmail 地址
-   - `GMAIL_APP_PASSWORD`：上一步的 16 位密码
-   - `MAIL_TO`：可选，收件地址，不填就发给自己
+仓库 Settings → Secrets and variables → Actions，添加：
+
+| Secret | 值 |
+| --- | --- |
+| `MAIL_USER` | 发信邮箱地址 |
+| `MAIL_PASSWORD` | Gmail 用应用专用密码，163 和 QQ 用授权码，不是登录密码 |
+| `MAIL_TO` | 可选，收件地址，不填就发给自己 |
+| `SMTP_HOST` | 可选，默认 `smtp.gmail.com`；163 填 `smtp.163.com`，QQ 填 `smtp.qq.com` |
+| `SMTP_PORT` | 可选，默认 `465`（SSL） |
+
+- Gmail：开两步验证，在 https://myaccount.google.com/apppasswords 生成应用专用密码。
+- 163：网页版邮箱 → 设置 → POP3/SMTP/IMAP → 开启 SMTP 服务 → 获取授权码。
 
 没有配置 secrets 时邮件步骤自动跳过。邮件里每个类别最多 15 条，开头有完整日报在 GitHub 上的链接。本地手动发一次：
 
 ```bash
-GMAIL_USER=... GMAIL_APP_PASSWORD=... newscollector email --date 2026-11-05
+MAIL_USER=... MAIL_PASSWORD=... SMTP_HOST=smtp.163.com newscollector email --date 2026-11-05
 ```
 
 ## 测试

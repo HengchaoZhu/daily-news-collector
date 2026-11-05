@@ -1,4 +1,4 @@
-"""Send a digest by email through Gmail SMTP (app password)."""
+"""Send a digest by email over SMTP (SSL). Works with Gmail app passwords, 163 授权码, etc."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def build_message(day: str, md: str, sender: str, to: str) -> EmailMessage:
     return msg
 
 
-def send_gmail(msg: EmailMessage, user: str, app_password: str) -> None:
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
-        smtp.login(user, app_password)
+def send(msg: EmailMessage, host: str, port: int, user: str, password: str) -> None:
+    with smtplib.SMTP_SSL(host, port, timeout=30) as smtp:
+        smtp.login(user, password)
         smtp.send_message(msg)

@@ -33,23 +33,40 @@ def test_build_message_has_text_and_html_parts():
 
 
 def test_email_skips_without_credentials(monkeypatch, tmp_path, caplog):
-    monkeypatch.delenv("GMAIL_USER", raising=False)
-    monkeypatch.delenv("GMAIL_APP_PASSWORD", raising=False)
+    monkeypatch.delenv("MAIL_USER", raising=False)
+    monkeypatch.delenv("MAIL_PASSWORD", raising=False)
     cfg = tmp_path / "s.yaml"
     cfg.write_text("categories: []\n", encoding="utf-8")
     cli.email_digest(str(cfg), str(tmp_path / "n.db"))
     assert "skipping" in caplog.text
 
 
-def test_email_sends_with_credentials(monkeypatch, tmp_path):
+def test_email_sends_with_credentials_and_custom_smtp(monkeypatch, tmp_path):
     sent = {}
-    monkeypatch.setenv("GMAIL_USER", "me@gmail.com")
-    monkeypatch.setenv("GMAIL_APP_PASSWORD", "pw")
+    monkeypatch.setenv("MAIL_USER", "me@163.com")
+    monkeypatch.setenv("MAIL_PASSWORD", "authcode")
+    monkeypatch.setenv("MAIL_TO", "me@gmail.com")
+    monkeypatch.setenv("SMTP_HOST", "smtp.163.com")
+    monkeypatch.setenv("SMTP_PORT", "465")
     monkeypatch.setenv("DIGEST_URL", "https://github.com/x/y/blob/main/digests/d.md")
-    monkeypatch.setattr(mail, "send_gmail", lambda msg, user, pw: sent.update(msg=msg, user=user, pw=pw))
+    monkeypatch.setattr(mail, "send", lambda msg, host, port, user, pw: sent.update(
+        msg=msg, host=host, port=port, user=user, pw=pw))
     cfg = tmp_path / "s.yaml"
     cfg.write_text("categories: []\n", encoding="utf-8")
     cli.email_digest(str(cfg), str(tmp_path / "n.db"), day="2026-11-05")
-    assert sent["user"] == "me@gmail.com" and sent["pw"] == "pw"
-    assert sent["msg"]["To"] == "me@gmail.com"
+    assert (sent["host"], sent["port"], sent["user"], sent["pw"]) == ("smtp.163.com", 465, "me@163.com", "authcode")
+    assert sent["msg"]["From"] == "me@163.com" and sent["msg"]["To"] == "me@gmail.com"
     assert "Full digest: https://github.com/x/y/blob/main/digests/d.md" in sent["msg"].get_body(("plain",)).get_content()
+
+
+def test_email_defaults_to_gmail_smtp(monkeypatch, tmp_path):
+    sent = {}
+    monkeypatch.setenv("MAIL_USER", "me@gmail.com")
+    monkeypatch.setenv("MAIL_PASSWORD", "pw")
+    for k in ("MAIL_TO", "SMTP_HOST", "SMTP_PORT", "DIGEST_URL"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setattr(mail, "send", lambda msg, host, port, user, pw: sent.update(host=host, port=port, to=msg["To"]))
+    cfg = tmp_path / "s.yaml"
+    cfg.write_text("categories: []\n", encoding="utf-8")
+    cli.email_digest(str(cfg), str(tmp_path / "n.db"), day="2026-11-05")
+    assert sent == {"host": "smtp.gmail.com", "port": 465, "to": "me@gmail.com"}
