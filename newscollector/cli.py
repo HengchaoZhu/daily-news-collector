@@ -97,15 +97,20 @@ def email_digest(config: str, db: str, day: str | None = None, max_per_category:
     conn = store.connect(db)
     rows = store.items_fetched_on(conn, day)
     conn.close()
-    md = digest.build_markdown(day, rows, names, max_per_category)
-    full = os.environ.get("DIGEST_URL")
-    if full:
-        md = md.replace("\n\n", f"\n\nFull digest: {full}\n\n", 1)
+    digest_md = digest.build_markdown(day, rows, names, max_per_category)
+    digest_url = os.environ.get("DIGEST_URL")
+    brief_md = None
     brief_path = os.path.join(briefs_dir, f"{day}.md")
     if os.path.exists(brief_path):
         with open(brief_path, encoding="utf-8") as f:
-            md = f.read().rstrip() + "\n\n---\n\n" + md
-    mail.send(mail.build_message(day, md, user, to), host, port, user, password)
+            brief_md = f.read().rstrip()
+    text = digest_md
+    if digest_url:
+        text = text.replace("\n\n", f"\n\nFull digest: {digest_url}\n\n", 1)
+    if brief_md:
+        text = brief_md + "\n\n---\n\n" + text
+    html_body = mail.render_email(day, brief_md, digest_md, digest_url)
+    mail.send(mail.build_message(day, text, html_body, user, to), host, port, user, password)
     log.info("email: sent %s to %s via %s (%d items)", day, to, host, len(rows))
 
 

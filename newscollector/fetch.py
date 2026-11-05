@@ -40,10 +40,13 @@ def parse_feed(feed: Feed, raw: bytes) -> list[dict]:
         source = feed.name
         if e.get("source") and e["source"].get("title"):
             source = e["source"]["title"]
+        title = clean_text(title, 300)
+        if title.endswith(f" - {source}"):  # Google News appends the source to the title
+            title = title[: -len(source) - 3].rstrip()
         items.append(
             {
                 "url": link,
-                "title": clean_text(title, 300),
+                "title": title,
                 "summary": clean_text(e.get("summary", "")),
                 "published": _published(e),
                 "source": source,

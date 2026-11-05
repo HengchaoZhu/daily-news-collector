@@ -1,8 +1,8 @@
 """Helpers for the daily briefing written by a scheduled Claude session.
 
 `brief-input` prints the day's items as a numbered list (no URLs, to keep it short) and
-saves the number -> URL index; `brief-link` turns the [n] references in the written
-briefing into links.
+saves the number -> {url, source, title} index; `brief-link` turns the [n] references in
+the written briefing into links whose text is the source name.
 """
 
 from __future__ import annotations
@@ -11,18 +11,22 @@ import json
 import os
 import re
 from collections import defaultdict
+from urllib.parse import urlsplit
 
-_REF_RE = re.compile(r"\[(\d+)\](?!\()")
+# one reference, linked ([12](url)) or not ([12])
+_REF_RE = re.compile(r"\[(\d+)\](?:\(([^)\s]*)\))?")
+# a run of adjacent references with nothing between them: [3][7] or [3](u)[7](u)
+_REF_GROUP_RE = re.compile(r"(?:\[\d+\](?:\([^)\s]*\))?)+")
 
 
 def listing(day: str, rows, category_names: dict[str, str], max_per_category: int = 100):
-    """Number the items per category; return the text and a {number: url} index."""
+    """Number the items per category; return the text and a {number: {url, source, title}} index."""
     by_cat: dict[str, list] = defaultdict(list)
     for r in rows:
         by_cat[r["category"]].append(r)
 
     lines = [f"日期：{day}", ""]
-    index: dict[int, str] = {}
+    index: dict[int, dict] = {}
     n = 0
     for key, name in category_names.items():
         items = by_cat.get(key, [])[:max_per_category]
@@ -31,7 +35,7 @@ def listing(day: str, rows, category_names: dict[str, str], max_per_category: in
         lines.append(f"### {name}")
         for r in items:
             n += 1
-            index[n] = r["url"]
+            index[n] = {"url": r["url"], "source": r["source"], "title": r["title"]}
             summary = (r["summary"] or "")[:120]
             if summary.startswith(r["title"][:40]):  # Google News repeats the title as the summary
                 summary = ""
@@ -40,26 +44,43 @@ def listing(day: str, rows, category_names: dict[str, str], max_per_category: in
     return "\n".join(lines), index
 
 
-def linkify(text: str, index: dict[int, str]) -> str:
-    """Turn [12] references into Markdown links using the index; leave unknown numbers alone."""
+def linkify(text: str, index: dict[int, dict]) -> str:
+    """Turn [12] references (bare or already linked) into [Source](url); unknown numbers stay."""
 
-    def repl(m: re.Match) -> str:
-        n = int(m.group(1))
-        return f"[{n}]({index[n]})" if n in index else m.group(0)
+    def group(m: re.Match) -> str:
+        parts = []
+        seen: dict[str, int] = {}
+        for n_str, url in _REF_RE.findall(m.group(0)):
+            entry = index.get(int(n_str))
+            if entry is None:
+                parts.append(f"[{n_str}]" + (f"({url})" if url else ""))
+                continue
+            label = entry["source"]
+            seen[label] = seen.get(label, 0) + 1
+            if seen[label] > 1:  # same source twice in one group: number the repeats
+                label = f"{label} {seen[label]}"
+            parts.append(f"[{label}]({entry['url']})")
+        return " · ".join(parts)
 
-    return _REF_RE.sub(repl, text)
+    return _REF_GROUP_RE.sub(group, text)
 
 
 def index_path(briefs_dir: str, day: str) -> str:
     return os.path.join(briefs_dir, ".index", f"{day}.json")
 
 
-def save_index(briefs_dir: str, day: str, index: dict[int, str]) -> None:
+def save_index(briefs_dir: str, day: str, index: dict[int, dict]) -> None:
     os.makedirs(os.path.dirname(index_path(briefs_dir, day)), exist_ok=True)
     with open(index_path(briefs_dir, day), "w", encoding="utf-8") as f:
-        json.dump(index, f)
+        json.dump(index, f, ensure_ascii=False)
 
 
-def load_index(briefs_dir: str, day: str) -> dict[int, str]:
+def load_index(briefs_dir: str, day: str) -> dict[int, dict]:
     with open(index_path(briefs_dir, day), encoding="utf-8") as f:
-        return {int(k): v for k, v in json.load(f).items()}
+        raw = json.load(f)
+    out = {}
+    for k, v in raw.items():
+        if isinstance(v, str):  # index written before sources were stored: fall back to the host
+            v = {"url": v, "source": urlsplit(v).netloc.removeprefix("www."), "title": ""}
+        out[int(k)] = v
+    return out

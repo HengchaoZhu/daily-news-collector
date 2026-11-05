@@ -31,6 +31,21 @@ def test_parse_feed_skips_items_without_link_and_cleans_html():
     assert items[0]["category"] == "us"
 
 
+def test_parse_feed_strips_google_news_source_suffix():
+    rss = (b'<?xml version="1.0"?><rss version="2.0"><channel><title>G</title>'
+           b'<item><title>Gold hits high - Reuters</title><link>https://news.google.com/x</link>'
+           b'<source url="https://reuters.com">Reuters</source></item></channel></rss>')
+    item = fetch.parse_feed(FEED, rss)[0]
+    assert item["source"] == "Reuters" and item["title"] == "Gold hits high"
+
+
+def test_digest_times_are_local_and_titles_cleaned(tmp_path, monkeypatch):
+    monkeypatch.setenv("DIGEST_TZ", "Asia/Shanghai")
+    assert digest.local_time("2026-11-05T08:00:00+00:00") == "2026-11-05 16:00"
+    assert digest.display_title("Gold hits high - Reuters", "Reuters") == "Gold hits high"
+    assert digest.display_title("Gold hits high", "Reuters") == "Gold hits high"
+
+
 def test_store_dedups_by_url_and_recent_title(tmp_path):
     conn = store.connect(str(tmp_path / "t.db"))
     items = fetch.parse_feed(FEED, RSS)
@@ -52,7 +67,7 @@ def test_digest_groups_by_category_and_lists_links(tmp_path):
     assert md.startswith("# Daily news 2026-11-05")
     assert "## 美国 (2)" in md
     assert "## 游戏" not in md
-    assert "[Treasury yields fall](https://news.example.com/yields)" in md
+    assert "[Treasury yields fall](https://news.example.com/yields) — Mock · 2026-11-05 18:00" in md  # 10:00 UTC
     assert store.items_fetched_on(conn, "2026-11-06") == []
 
 
