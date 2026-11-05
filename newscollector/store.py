@@ -59,9 +59,15 @@ def insert_items(conn: sqlite3.Connection, items: list[dict], now: datetime | No
     return inserted
 
 
-def items_fetched_on(conn: sqlite3.Connection, day: str) -> list[sqlite3.Row]:
-    """All items first seen on `day` (YYYY-MM-DD, UTC), newest published first."""
+def items_fetched_on(conn: sqlite3.Connection, day: str, max_age_days: int = 7) -> list[sqlite3.Row]:
+    """Items first seen on `day` (YYYY-MM-DD, UTC) and published within `max_age_days`.
+
+    The age cut keeps a feed's back catalogue (first run, or a feed that republishes
+    its archive) out of the digest; those rows stay in the database.
+    """
+    since = (datetime.fromisoformat(day).replace(tzinfo=timezone.utc) - timedelta(days=max_age_days)).isoformat()
     return conn.execute(
-        "SELECT * FROM items WHERE substr(fetched_at, 1, 10) = ? ORDER BY category, published DESC",
-        (day,),
+        "SELECT * FROM items WHERE substr(fetched_at, 1, 10) = ? AND published >= ?"
+        " ORDER BY category, published DESC",
+        (day, since),
     ).fetchall()

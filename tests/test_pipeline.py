@@ -56,6 +56,18 @@ def test_digest_groups_by_category_and_lists_links(tmp_path):
     assert store.items_fetched_on(conn, "2026-11-06") == []
 
 
+def test_digest_excludes_back_catalogue(tmp_path):
+    conn = store.connect(str(tmp_path / "t.db"))
+    now = datetime(2026, 11, 5, 12, tzinfo=timezone.utc)
+    items = fetch.parse_feed(FEED, RSS)
+    old = dict(items[3], url="https://news.example.com/archive-2019", title="An old archive post",
+               published="2019-01-01T00:00:00+00:00")
+    store.insert_items(conn, items + [old], now)
+    titles = [r["title"] for r in store.items_fetched_on(conn, "2026-11-05")]
+    assert "An old archive post" not in titles
+    assert len(titles) == 2
+
+
 def test_cli_run_with_mocked_network(tmp_path, monkeypatch):
     cfg = tmp_path / "sources.yaml"
     cfg.write_text(
