@@ -31,6 +31,20 @@ newscollector digest --date 2026-11-05
 
 `.github/workflows/daily.yml` 每天 06:17（北京时间）在 GitHub Actions 上跑一次，把日报和数据库提交回仓库。GitHub 的 runner 在海外，所以 Google News、Reddit 这类从国内不稳定的源不受影响。手动触发在 Actions 页面点 `Run workflow`。
 
+## Claude 简报
+
+`newscollector brief` 把当天的条目（每类最多 100 条，标题加摘要前 120 字）交给 Claude，写一份中文简报：今日要点、分类要点、值得深挖，每条带编号链接回原文。输出在 `briefs/YYYY-MM-DD.md`，邮件里排在日报前面。
+
+需要一个 secret：`ANTHROPIC_API_KEY`，在 https://console.anthropic.com 创建，和 Claude.ai 订阅是两回事。没有这个 secret 时简报步骤自动跳过。
+
+默认模型 `claude-opus-5-5`，请求开启了服务端 fallback，模型因安全策略拒答时会自动换一个模型重试。每天的输入约三四万 token，按目前价格大约 0.2 美元一天。想便宜一半，加 secret `BRIEF_MODEL=claude-sonnet-5-5`。
+
+本地跑一次：
+
+```bash
+ANTHROPIC_API_KEY=... newscollector brief --date 2026-11-05
+```
+
 ## 邮件推送
 
 工作流跑完后可以把日报通过 SMTP 发到邮箱，Gmail、163、QQ 邮箱都行，不需要第三方服务。

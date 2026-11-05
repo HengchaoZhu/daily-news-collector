@@ -23,6 +23,13 @@ def google_news_url(q: str, lang: str = "en-US", country: str = "US") -> str:
     )
 
 
+def load_categories(path: str) -> dict[str, str]:
+    """Ordered {key: name} for every category, even one with no feeds."""
+    with open(path, encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    return {cat["key"]: cat["name"] for cat in cfg["categories"]}
+
+
 def load_feeds(path: str) -> list[Feed]:
     with open(path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)

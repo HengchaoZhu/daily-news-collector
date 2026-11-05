@@ -7,34 +7,46 @@ import re
 import smtplib
 from email.message import EmailMessage
 
-_ITEM_RE = re.compile(r"^- \[(?P<title>.+?)\]\((?P<url>\S+)\)(?P<rest>.*)$")
+_LINK_RE = re.compile(r"\[([^\]]+)\]\((\S+?)\)")
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+
+
+def _inline(text: str) -> str:
+    """Escape text, turning [label](url) into anchors and **x** into <strong>."""
+    out: list[str] = []
+    pos = 0
+    for m in _LINK_RE.finditer(text):
+        out.append(html.escape(text[pos:m.start()]))
+        out.append(f'<a href="{html.escape(m.group(2), quote=True)}">{html.escape(m.group(1))}</a>')
+        pos = m.end()
+    out.append(html.escape(text[pos:]))
+    return _BOLD_RE.sub(r"<strong>\1</strong>", "".join(out))
 
 
 def digest_html(md: str) -> str:
-    """Convert the digest's own Markdown (headings and link bullets) to simple HTML."""
+    """Convert the brief's and digest's Markdown (headings, bullets, links) to simple HTML."""
     out: list[str] = []
     in_list = False
     for line in md.splitlines():
-        m = _ITEM_RE.match(line)
-        if m:
+        if line.startswith("- "):
             if not in_list:
                 out.append("<ul>")
                 in_list = True
-            rest = html.escape(m.group("rest").lstrip(" —"))
-            out.append(
-                f'<li><a href="{html.escape(m.group("url"), quote=True)}">{html.escape(m.group("title"))}</a>'
-                f'{" <small>" + rest + "</small>" if rest else ""}</li>'
-            )
+            out.append(f"<li>{_inline(line[2:])}</li>")
             continue
         if in_list:
             out.append("</ul>")
             in_list = False
-        if line.startswith("## "):
-            out.append(f"<h2>{html.escape(line[3:])}</h2>")
+        if line.strip() == "---":
+            out.append("<hr>")
+        elif line.startswith("### "):
+            out.append(f"<h3>{_inline(line[4:])}</h3>")
+        elif line.startswith("## "):
+            out.append(f"<h2>{_inline(line[3:])}</h2>")
         elif line.startswith("# "):
-            out.append(f"<h1>{html.escape(line[2:])}</h1>")
+            out.append(f"<h1>{_inline(line[2:])}</h1>")
         elif line.strip():
-            out.append(f"<p>{html.escape(line)}</p>")
+            out.append(f"<p>{_inline(line)}</p>")
     if in_list:
         out.append("</ul>")
     return "\n".join(out)

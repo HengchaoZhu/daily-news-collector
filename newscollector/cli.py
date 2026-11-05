@@ -7,8 +7,8 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from . import digest, fetch, mail, store
-from .config import load_feeds
+from . import brief, digest, fetch, mail, store
+from .config import load_categories, load_feeds
 
 log = logging.getLogger("newscollector")
 
@@ -38,7 +38,7 @@ def collect(config: str, db: str, only: str | None = None) -> dict[str, int]:
 
 def write_digest(config: str, db: str, out_dir: str, day: str | None = None) -> str:
     day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    names = {f.category_key: f.category_name for f in load_feeds(config)}
+    names = load_categories(config)
     conn = store.connect(db)
     rows = store.items_fetched_on(conn, day)
     conn.close()
@@ -50,8 +50,33 @@ def write_digest(config: str, db: str, out_dir: str, day: str | None = None) -> 
     return path
 
 
-def email_digest(config: str, db: str, day: str | None = None, max_per_category: int = 15) -> None:
-    """Email a shortened digest over SMTP.
+def write_brief(config: str, db: str, out_dir: str, day: str | None = None,
+                max_input: int = 100) -> str | None:
+    """Ask Claude for a briefing of the day's items. Needs ANTHROPIC_API_KEY; BRIEF_MODEL optional."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        log.warning("brief: ANTHROPIC_API_KEY not set, skipping")
+        return None
+    day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    names = load_categories(config)
+    conn = store.connect(db)
+    rows = store.items_fetched_on(conn, day)
+    conn.close()
+    if not rows:
+        log.warning("brief: no items for %s, skipping", day)
+        return None
+    model = os.environ.get("BRIEF_MODEL") or brief.MODEL
+    md = brief.write_brief(day, rows, names, max_input, model)
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"{day}.md")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(md)
+    log.info("brief: %s (%d items in, model %s)", path, len(rows), model)
+    return path
+
+
+def email_digest(config: str, db: str, day: str | None = None, max_per_category: int = 15,
+                 briefs_dir: str = "briefs") -> None:
+    """Email the day's briefing (if one exists) plus a shortened digest over SMTP.
 
     Env: MAIL_USER, MAIL_PASSWORD (required), MAIL_TO (default MAIL_USER),
     SMTP_HOST (default smtp.gmail.com), SMTP_PORT (default 465, SSL).
@@ -65,7 +90,7 @@ def email_digest(config: str, db: str, day: str | None = None, max_per_category:
     host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
     port = int(os.environ.get("SMTP_PORT") or 465)
     day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    names = {f.category_key: f.category_name for f in load_feeds(config)}
+    names = load_categories(config)
     conn = store.connect(db)
     rows = store.items_fetched_on(conn, day)
     conn.close()
@@ -73,19 +98,25 @@ def email_digest(config: str, db: str, day: str | None = None, max_per_category:
     full = os.environ.get("DIGEST_URL")
     if full:
         md = md.replace("\n\n", f"\n\nFull digest: {full}\n\n", 1)
+    brief_path = os.path.join(briefs_dir, f"{day}.md")
+    if os.path.exists(brief_path):
+        with open(brief_path, encoding="utf-8") as f:
+            md = f.read().rstrip() + "\n\n---\n\n" + md
     mail.send(mail.build_message(day, md, user, to), host, port, user, password)
     log.info("email: sent %s to %s via %s (%d items)", day, to, host, len(rows))
 
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="newscollector")
-    p.add_argument("command", choices=["collect", "digest", "run", "email"])
+    p.add_argument("command", choices=["collect", "digest", "run", "brief", "email"])
     p.add_argument("--config", default="sources.yaml")
     p.add_argument("--db", default="data/news.db")
     p.add_argument("--out", default="digests")
+    p.add_argument("--briefs", default="briefs")
     p.add_argument("--date", help="digest day, YYYY-MM-DD (UTC); default today")
     p.add_argument("--only", help="collect a single category key")
     p.add_argument("--max", type=int, default=15, help="email: items per category")
+    p.add_argument("--max-input", type=int, default=100, help="brief: items per category sent to the model")
     p.add_argument("-v", "--verbose", action="store_true")
     a = p.parse_args(argv)
 
@@ -96,8 +127,10 @@ def main(argv: list[str] | None = None) -> None:
         collect(a.config, a.db, a.only)
     if a.command in ("digest", "run"):
         write_digest(a.config, a.db, a.out, a.date)
+    if a.command == "brief":
+        write_brief(a.config, a.db, a.briefs, a.date, a.max_input)
     if a.command == "email":
-        email_digest(a.config, a.db, a.date, a.max)
+        email_digest(a.config, a.db, a.date, a.max, a.briefs)
 
 
 if __name__ == "__main__":

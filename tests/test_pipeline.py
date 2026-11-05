@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from newscollector import cli, digest, fetch, store
-from newscollector.config import Feed, google_news_url, load_feeds
+from newscollector.config import Feed, google_news_url, load_categories, load_feeds
 
 RSS = b"""<?xml version="1.0"?>
 <rss version="2.0"><channel><title>Mock Feed</title>
@@ -112,3 +112,10 @@ def test_collect_survives_a_failing_feed(tmp_path, monkeypatch):
     monkeypatch.setattr(fetch, "fetch_bytes", fake)
     stats = cli.collect(str(cfg), str(tmp_path / "n.db"))
     assert stats == {"feeds": 2, "failed": 1, "seen": 4, "new": 2}
+
+
+def test_load_categories_keeps_feedless_categories(tmp_path):
+    cfg = tmp_path / "s.yaml"
+    cfg.write_text("categories:\n  - key: a\n    name: A\n    feeds: []\n  - key: b\n    name: B\n    feeds:\n      - {name: x, url: https://x.example.com}\n", encoding="utf-8")
+    assert load_categories(str(cfg)) == {"a": "A", "b": "B"}
+    assert [f.category_key for f in load_feeds(str(cfg))] == ["b"]

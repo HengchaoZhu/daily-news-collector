@@ -19,9 +19,16 @@ def test_digest_html_renders_headings_and_links():
     h = mail.digest_html(MD)
     assert "<h1>Daily news 2026-11-05</h1>" in h
     assert "<h2>美国 (2)</h2>" in h
-    assert '<a href="https://a.example.com/fed?x=1&amp;y=2">Fed holds &lt;rates&gt;</a>' in h
-    assert "<small>WSJ · 2026-11-05 08:00</small>" in h
+    assert '<li><a href="https://a.example.com/fed?x=1&amp;y=2">Fed holds &lt;rates&gt;</a> — WSJ · 2026-11-05 08:00</li>' in h
     assert h.count("<ul>") == 2 and h.count("</ul>") == 2
+
+
+def test_digest_html_handles_brief_prose_inline_links_and_rules():
+    md = "# 简报\n\n## 今日要点\n\n- 美联储**按兵不动** [1](https://a.example.com/x)[2](https://b.example.com/y)，市场平静。\n\n---\n\n段落 <b>。"
+    h = mail.digest_html(md)
+    assert '<li>美联储<strong>按兵不动</strong> <a href="https://a.example.com/x">1</a><a href="https://b.example.com/y">2</a>，市场平静。</li>' in h
+    assert "<hr>" in h
+    assert "<p>段落 &lt;b&gt;。</p>" in h
 
 
 def test_build_message_has_text_and_html_parts():
