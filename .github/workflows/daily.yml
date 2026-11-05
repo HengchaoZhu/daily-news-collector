@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 env:
-  MAIL_USER: ${{ secrets.MAIL_USER }}
-  MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+  MAIL_USER: ${{ secrets.MAIL_USER || secrets.GMAIL_USER }}
+  MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD || secrets.GMAIL_APP_PASSWORD }}
   MAIL_TO: ${{ secrets.MAIL_TO }}
   SMTP_HOST: ${{ secrets.SMTP_HOST }}   # e.g. smtp.163.com; empty = smtp.gmail.com
   SMTP_PORT: ${{ secrets.SMTP_PORT }}   # empty = 465
