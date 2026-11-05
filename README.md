@@ -34,8 +34,10 @@ newscollector digest --date 2026-11-05
 ## 每天的流程
 
 1. **06:17 北京时间**，GitHub Actions（`daily.yml`）抓取全部信源，提交 `digests/YYYY-MM-DD.md` 和数据库。
-2. **06:45**，一个 Claude Code 定时任务开一个新会话：拉仓库，用 `newscollector brief-input` 读当天条目，写 `briefs/YYYY-MM-DD.md`，用 `newscollector brief-link` 把编号变成链接，提交并推送。不用 API key，用的是 Claude 订阅。
+2. **06:45**，Claude Code 的定时任务唤醒一个常驻会话（"每日新闻简报员"，以这个仓库为 source，所以有推送权限）：拉仓库，用 `newscollector brief-input` 读当天条目，写 `briefs/YYYY-MM-DD.md`，用 `newscollector brief-link` 把编号变成链接，提交并推送。不用 API key，用的是 Claude 订阅。
 3. 简报推上来触发 `email.yml`，把简报加日报发到邮箱。
+
+定时任务开出的全新会话拿不到仓库的推送权限（已验证），所以必须是常驻会话；在 claude.ai 的定时任务页面点"立即运行"会新开会话而不是唤醒常驻会话，测试时不要用那个按钮，等每天的计划时间即可。
 
 简报的结构：今日要点（5 到 8 条）、每个类别 3 到 6 条、值得深挖（2 到 3 条），每条引用条目编号 `[n]`，`brief-link` 之后编号就是原文链接。
 
