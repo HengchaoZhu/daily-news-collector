@@ -59,15 +59,22 @@ def insert_items(conn: sqlite3.Connection, items: list[dict], now: datetime | No
     return inserted
 
 
-def items_fetched_on(conn: sqlite3.Connection, day: str, max_age_days: int = 7) -> list[sqlite3.Row]:
-    """Items first seen on `day` (YYYY-MM-DD, UTC) and published within `max_age_days`.
+def items_fetched_on(conn: sqlite3.Connection, day: str, max_age_days: int = 7,
+                     tz: str | None = None) -> list[sqlite3.Row]:
+    """Items first seen on `day` (YYYY-MM-DD in the digest's time zone, default Asia/Shanghai)
+    and published within `max_age_days`.
 
     The age cut keeps a feed's back catalogue (first run, or a feed that republishes
     its archive) out of the digest; those rows stay in the database.
     """
-    since = (datetime.fromisoformat(day).replace(tzinfo=timezone.utc) - timedelta(days=max_age_days)).isoformat()
+    from .digest import zone
+
+    start_local = datetime.fromisoformat(day).replace(tzinfo=zone(tz))
+    start = start_local.astimezone(timezone.utc)
+    end = (start_local + timedelta(days=1)).astimezone(timezone.utc)
+    since = (start - timedelta(days=max_age_days)).isoformat()
     return conn.execute(
-        "SELECT * FROM items WHERE substr(fetched_at, 1, 10) = ? AND published >= ?"
+        "SELECT * FROM items WHERE fetched_at >= ? AND fetched_at < ? AND published >= ?"
         " ORDER BY category, published DESC",
-        (day, since),
+        (start.isoformat(), end.isoformat(), since),
     ).fetchall()

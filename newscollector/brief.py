@@ -65,6 +65,35 @@ def linkify(text: str, index: dict[int, dict]) -> str:
     return _REF_GROUP_RE.sub(group, text)
 
 
+def titles_listing(rows, category_names: dict[str, str], max_per_category: int = 40) -> str:
+    """The digest's items as 'fp8<TAB>source<TAB>title' lines, for the translator to fill in."""
+    by_cat: dict[str, list] = defaultdict(list)
+    for r in rows:
+        by_cat[r["category"]].append(r)
+    lines = []
+    for key in category_names:
+        for r in by_cat.get(key, [])[:max_per_category]:
+            title = r["title"]
+            if title.endswith(f" - {r['source']}"):
+                title = title[: -len(r["source"]) - 3].rstrip()
+            lines.append(f"{r['url_fp'][:8]}\t{r['source']}\t{title}")
+    return "\n".join(lines)
+
+
+def titles_path(briefs_dir: str, day: str) -> str:
+    return os.path.join(briefs_dir, "titles", f"{day}.json")
+
+
+def load_titles(briefs_dir: str, day: str) -> dict[str, str]:
+    """{fp8: 中文标题} written by the briefing session; empty when the file is missing."""
+    path = titles_path(briefs_dir, day)
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return {k: v for k, v in data.items() if isinstance(v, str) and v.strip()}
+
+
 def index_path(briefs_dir: str, day: str) -> str:
     return os.path.join(briefs_dir, ".index", f"{day}.json")
 

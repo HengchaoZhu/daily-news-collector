@@ -8,10 +8,19 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 
+def zone(tz: str | None = None) -> ZoneInfo:
+    """The digest's time zone: DIGEST_TZ, default Asia/Shanghai. Day keys and times use it."""
+    return ZoneInfo(tz or os.environ.get("DIGEST_TZ") or "Asia/Shanghai")
+
+
+def today(tz: str | None = None) -> str:
+    """Today's date in the digest's time zone, YYYY-MM-DD."""
+    return datetime.now(zone(tz)).strftime("%Y-%m-%d")
+
+
 def local_time(published: str, tz: str | None = None) -> str:
-    """ISO timestamp -> 'YYYY-MM-DD HH:MM' in DIGEST_TZ (default Asia/Shanghai)."""
-    zone = ZoneInfo(tz or os.environ.get("DIGEST_TZ") or "Asia/Shanghai")
-    return datetime.fromisoformat(published).astimezone(zone).strftime("%Y-%m-%d %H:%M")
+    """ISO timestamp -> 'YYYY-MM-DD HH:MM' in the digest's time zone."""
+    return datetime.fromisoformat(published).astimezone(zone(tz)).strftime("%Y-%m-%d %H:%M")
 
 
 def display_title(title: str, source: str) -> str:
@@ -20,7 +29,10 @@ def display_title(title: str, source: str) -> str:
     return title[: -len(suffix)].rstrip() if title.endswith(suffix) else title
 
 
-def build_markdown(day: str, rows, category_names: dict[str, str], max_per_category: int = 40) -> str:
+def build_markdown(day: str, rows, category_names: dict[str, str], max_per_category: int = 40,
+                   titles: dict[str, str] | None = None) -> str:
+    """`titles` maps the first 8 chars of an item's url_fp to a translated title."""
+    titles = titles or {}
     by_cat: dict[str, list] = defaultdict(list)
     for r in rows:
         by_cat[r["category"]].append(r)
@@ -37,7 +49,7 @@ def build_markdown(day: str, rows, category_names: dict[str, str], max_per_categ
         lines.append(f"## {name} ({len(items)})")
         lines.append("")
         for r in items[:max_per_category]:
-            title = display_title(r["title"], r["source"])
+            title = titles.get(r["url_fp"][:8]) or display_title(r["title"], r["source"])
             lines.append(f"- [{title}]({r['url']}) — {r['source']} · {local_time(r['published'])}")
         if len(items) > max_per_category:
             lines.append(f"- … 另有 {len(items) - max_per_category} 条见完整日报")

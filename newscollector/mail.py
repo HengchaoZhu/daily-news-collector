@@ -98,17 +98,18 @@ def _digest_blocks(md: str) -> list[str]:
     return out
 
 
-def render_email(day: str, brief_md: str | None, digest_md: str, digest_url: str | None = None) -> str:
+def render_email(day: str, brief_md: str | None, digest_md: str, digest_url: str | None = None,
+                 kicker: str = "每日简报", footer_note: str | None = None) -> str:
     parts = [
-        f'<p style="{_S["kicker"]}">每日简报</p>',
+        f'<p style="{_S["kicker"]}">{html.escape(kicker)}</p>',
         f'<h1 style="{_S["title"]}">{html.escape(day)}</h1>',
     ]
     if brief_md:
         parts += _brief_blocks(brief_md)
     parts += _digest_blocks(digest_md)
-    footer = "每日抓取约 60 个信源，去重后由 Claude 写成简报。"
+    footer = footer_note or "每日抓取约 60 个信源，去重后由 Claude 写成简报。完整日报见附件 PDF。"
     if digest_url:
-        footer += f' <a href="{html.escape(digest_url, quote=True)}" style="{_S["footerLink"]}">完整日报</a>'
+        footer += f' <a href="{html.escape(digest_url, quote=True)}" style="{_S["footerLink"]}">GitHub 上的日报</a>'
     parts.append(f'<div style="{_S["footer"]}">{footer}</div>')
     body = "\n".join(parts)
     return (
@@ -118,13 +119,24 @@ def render_email(day: str, brief_md: str | None, digest_md: str, digest_url: str
     )
 
 
-def build_message(day: str, text: str, html_body: str, sender: str, to: str) -> EmailMessage:
+def render_pdf_html(day: str, digest_md: str) -> str:
+    """The full digest laid out for print: white page, no card, page margins from the printer."""
+    doc = render_email(day, None, digest_md, kicker="完整日报", footer_note="每日抓取约 60 个信源，去重后按类别列出。")
+    return doc.replace(f'<body style="{_S["body"]}">', f'<body style="margin:0;background:#fff;font-family:{FONT};color:{INK};">') \
+              .replace(f'<div style="{_S["wrap"]}">', '<div style="max-width:none;margin:0;padding:0;">') \
+              .replace(f'<div style="{_S["card"]}">', '<div style="padding:0;">')
+
+
+def build_message(day: str, text: str, html_body: str, sender: str, to: str,
+                  pdf: bytes | None = None) -> EmailMessage:
     msg = EmailMessage()
     msg["Subject"] = f"每日简报 · {day}"
     msg["From"] = sender
     msg["To"] = to
     msg.set_content(text)
     msg.add_alternative(html_body, subtype="html")
+    if pdf:
+        msg.add_attachment(pdf, maintype="application", subtype="pdf", filename=f"日报-{day}.pdf")
     return msg
 
 

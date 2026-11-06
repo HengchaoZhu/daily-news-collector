@@ -5,9 +5,8 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-from datetime import datetime, timezone
 
-from . import brief, digest, fetch, mail, store
+from . import brief, digest, fetch, mail, pdf, store
 from .config import load_categories, load_feeds
 
 log = logging.getLogger("newscollector")
@@ -37,7 +36,7 @@ def collect(config: str, db: str, only: str | None = None) -> dict[str, int]:
 
 
 def write_digest(config: str, db: str, out_dir: str, day: str | None = None) -> str:
-    day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day = day or digest.today()
     names = load_categories(config)
     conn = store.connect(db)
     rows = store.items_fetched_on(conn, day)
@@ -53,7 +52,7 @@ def write_digest(config: str, db: str, out_dir: str, day: str | None = None) -> 
 def brief_input(config: str, db: str, briefs_dir: str, day: str | None = None,
                 max_per_category: int = 100) -> str:
     """Print the day's items as a numbered list for the briefing writer; save the link index."""
-    day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day = day or digest.today()
     names = load_categories(config)
     conn = store.connect(db)
     rows = store.items_fetched_on(conn, day)
@@ -66,7 +65,7 @@ def brief_input(config: str, db: str, briefs_dir: str, day: str | None = None,
 
 def brief_link(briefs_dir: str, day: str | None = None) -> str:
     """Replace [n] references in briefs/<day>.md with links from the saved index."""
-    day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day = day or digest.today()
     path = os.path.join(briefs_dir, f"{day}.md")
     with open(path, encoding="utf-8") as f:
         text = f.read()
@@ -94,12 +93,14 @@ def email_digest(config: str, db: str, day: str | None = None, max_per_category:
     to = ", ".join(dict.fromkeys(a.strip() for a in raw.split(",") if a.strip()))
     host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
     port = int(os.environ.get("SMTP_PORT") or 465)
-    day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day = day or digest.today()
     names = load_categories(config)
     conn = store.connect(db)
     rows = store.items_fetched_on(conn, day)
     conn.close()
-    digest_md = digest.build_markdown(day, rows, names, max_per_category)
+    titles = brief.load_titles(briefs_dir, day)
+    digest_md = digest.build_markdown(day, rows, names, max_per_category, titles)
+    full_md = digest.build_markdown(day, rows, names, 40, titles)
     digest_url = os.environ.get("DIGEST_URL")
     brief_md = None
     brief_path = os.path.join(briefs_dir, f"{day}.md")
@@ -112,18 +113,34 @@ def email_digest(config: str, db: str, day: str | None = None, max_per_category:
     if brief_md:
         text = brief_md + "\n\n---\n\n" + text
     html_body = mail.render_email(day, brief_md, digest_md, digest_url)
-    mail.send(mail.build_message(day, text, html_body, user, to), host, port, user, password)
-    log.info("email: sent %s to %s via %s (%d items)", day, to, host, len(rows))
+    pdf_bytes = None
+    try:
+        pdf_bytes = pdf.render_pdf(mail.render_pdf_html(day, full_md))
+    except Exception as exc:  # no browser available: send without the attachment
+        log.warning("email: PDF not attached (%s)", exc)
+    mail.send(mail.build_message(day, text, html_body, user, to, pdf_bytes), host, port, user, password)
+    log.info("email: sent %s to %s via %s (%d items, %d titles translated, pdf %s)",
+             day, to, host, len(rows), len(titles), "yes" if pdf_bytes else "no")
+
+
+def titles_input(config: str, db: str, day: str | None = None, max_per_category: int = 40) -> str:
+    """Print the digest's items as 'fp8<TAB>source<TAB>title' for translation."""
+    day = day or digest.today()
+    names = load_categories(config)
+    conn = store.connect(db)
+    rows = store.items_fetched_on(conn, day)
+    conn.close()
+    return brief.titles_listing(rows, names, max_per_category)
 
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="newscollector")
-    p.add_argument("command", choices=["collect", "digest", "run", "brief-input", "brief-link", "email"])
+    p.add_argument("command", choices=["collect", "digest", "run", "brief-input", "brief-link", "titles-input", "email"])
     p.add_argument("--config", default="sources.yaml")
     p.add_argument("--db", default="data/news.db")
     p.add_argument("--out", default="digests")
     p.add_argument("--briefs", default="briefs")
-    p.add_argument("--date", help="digest day, YYYY-MM-DD (UTC); default today")
+    p.add_argument("--date", help="day, YYYY-MM-DD in DIGEST_TZ (default Asia/Shanghai); default today")
     p.add_argument("--only", help="collect a single category key")
     p.add_argument("--max", type=int, default=15, help="email: items per category")
     p.add_argument("--max-input", type=int, default=100, help="brief-input: items per category")
@@ -141,6 +158,8 @@ def main(argv: list[str] | None = None) -> None:
         print(brief_input(a.config, a.db, a.briefs, a.date, a.max_input))
     if a.command == "brief-link":
         brief_link(a.briefs, a.date)
+    if a.command == "titles-input":
+        print(titles_input(a.config, a.db, a.date))
     if a.command == "email":
         email_digest(a.config, a.db, a.date, a.max, a.briefs)
 

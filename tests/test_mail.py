@@ -56,6 +56,38 @@ def test_build_message_has_text_and_html_parts():
     assert msg["To"] == "you@example.com"
     parts = {p.get_content_type() for p in msg.walk()}
     assert {"text/plain", "text/html"} <= parts
+    assert "application/pdf" not in parts
+
+
+def test_build_message_attaches_pdf():
+    msg = mail.build_message("2026-11-05", "plain", "<html></html>", "me@gmail.com", "you@example.com", pdf=b"%PDF-1.4 fake")
+    att = [p for p in msg.walk() if p.get_content_type() == "application/pdf"]
+    assert len(att) == 1 and att[0].get_filename() == "日报-2026-11-05.pdf" and att[0].get_payload(decode=True) == b"%PDF-1.4 fake"
+
+
+def test_render_pdf_html_is_print_layout():
+    h = mail.render_pdf_html("2026-11-05", DIGEST)
+    assert ">完整日报</p>" in h and "background:#fff" in h and "Arma update" in h and "今日要点" not in h
+
+
+def test_email_attaches_pdf_and_survives_pdf_failure(monkeypatch, tmp_path, caplog):
+    from newscollector import pdf
+    sent = {}
+    monkeypatch.setenv("MAIL_USER", "me@gmail.com")
+    monkeypatch.setenv("MAIL_PASSWORD", "pw")
+    monkeypatch.setattr(mail, "send", lambda msg, host, port, user, pw: sent.update(msg=msg))
+    cfg = tmp_path / "s.yaml"
+    cfg.write_text("categories: []\n", encoding="utf-8")
+    monkeypatch.setattr(pdf, "render_pdf", lambda html: b"%PDF-1.4 ok")
+    cli.email_digest(str(cfg), str(tmp_path / "n.db"), day="2026-11-05")
+    assert any(p.get_content_type() == "application/pdf" for p in sent["msg"].walk())
+
+    def boom(html):
+        raise RuntimeError("no browser")
+    monkeypatch.setattr(pdf, "render_pdf", boom)
+    cli.email_digest(str(cfg), str(tmp_path / "n.db"), day="2026-11-05")
+    assert not any(p.get_content_type() == "application/pdf" for p in sent["msg"].walk())
+    assert "PDF not attached" in caplog.text
 
 
 def test_email_skips_without_credentials(monkeypatch, tmp_path, caplog):

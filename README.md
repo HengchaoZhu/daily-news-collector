@@ -27,28 +27,32 @@ newscollector digest --date 2026-11-05
 
 一个源失败不会中断整轮，日志里会标 `FAIL`。
 
-## 自动化
-
-`.github/workflows/daily.yml` 每天 06:17（北京时间）在 GitHub Actions 上跑一次，把日报和数据库提交回仓库。GitHub 的 runner 在海外，所以 Google News、Reddit 这类从国内不稳定的源不受影响。手动触发在 Actions 页面点 `Run workflow`。简报和邮件见下面"每天的流程"。
-
 ## 每天的流程
 
-1. **06:17 北京时间**，GitHub Actions（`daily.yml`）抓取全部信源，提交 `digests/YYYY-MM-DD.md` 和数据库。
-2. **06:45**，Claude Code 的定时任务唤醒一个常驻会话（"每日新闻简报员"，以这个仓库为 source，所以有推送权限）：拉仓库，用 `newscollector brief-input` 读当天条目，写 `briefs/YYYY-MM-DD.md`，用 `newscollector brief-link` 把编号变成链接，提交并推送。不用 API key，用的是 Claude 订阅。
-3. 简报推上来触发 `email.yml`，把简报加日报发到邮箱。
+所有日期都按北京时间计算（`DIGEST_TZ`，默认 `Asia/Shanghai`）。
 
-定时任务开出的全新会话拿不到仓库的推送权限（已验证），所以必须是常驻会话；在 claude.ai 的定时任务页面点"立即运行"会新开会话而不是唤醒常驻会话，测试时不要用那个按钮，等每天的计划时间即可。
+1. **06:45**，Claude Code 的定时任务唤醒常驻会话"每日新闻简报员"（Opus 5.5，以这个仓库为 source，所以有推送权限）。会话读 [`BRIEFING.md`](BRIEFING.md) 照做：抓取全部信源，写简报，把日报标题译成中文，一次提交并推送。不用 API key，用的是 Claude 订阅。
+2. 推送 `briefs/*.md` 触发 `email.yml`：正文是简报加每类前 15 条日报，附件是完整日报 PDF。
 
-简报的结构：今日要点（5 到 8 条）、每个类别 3 到 6 条、值得深挖（2 到 3 条），每条引用条目编号 `[n]`，`brief-link` 之后编号就是原文链接。
+任务步骤都在 `BRIEFING.md` 里，定时任务本身只说"读它并照做"，所以以后调整流程只需要改这个文件。
 
-给 Claude 会话用的两个命令：
+`daily.yml` 现在只能手动触发，作为备用抓取。原来它定在 06:17 自动跑，但 GitHub 的定时任务实际晚了约 4 小时，06:45 的简报拿不到数据，所以改由会话自己抓。
+
+定时任务开出的全新会话拿不到仓库的推送权限（已验证），所以必须是常驻会话；在 claude.ai 的定时任务页面点"立即运行"会新开会话而不是唤醒常驻会话，测试时不要用那个按钮。
+
+简报的结构：今日要点（5 到 8 条）、每个类别 3 到 6 条、值得深挖（2 到 3 条），每条引用条目编号 `[n]`，`brief-link` 之后变成 `[来源名](链接)`。
+
+给 Claude 会话用的三个命令：
 
 ```bash
 newscollector brief-input --date 2026-11-05   # 打印编号清单（每类最多 100 条，不含 URL），保存编号到 URL 的索引
-newscollector brief-link --date 2026-11-05    # 把 briefs/2026-11-05.md 里的 [n] 替换成链接
+newscollector brief-link --date 2026-11-05    # 把 briefs/2026-11-05.md 里的 [n] 替换成 [来源名](链接)
+newscollector titles-input --date 2026-11-05  # 打印日报条目（每类最多 40 条）供翻译，会话写 briefs/titles/2026-11-05.json
 ```
 
-某天 Claude 任务没跑成功，就不会有邮件；在 Actions 页面手动跑 `email` 工作流可以只发日报。
+邮件正文是简报加每类前 15 条日报，附件是完整日报的 PDF（每类最多 40 条，Chromium 打印），标题用 `briefs/titles/<日期>.json` 里的中文译文，没有译文的保留原文。
+
+某天 Claude 任务没跑成功，就不会有邮件；在 Actions 页面先手动跑 `daily`，再跑 `email`，可以只发日报。
 
 ## 邮件推送
 

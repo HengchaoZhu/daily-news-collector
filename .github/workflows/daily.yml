@@ -1,8 +1,8 @@
 name: daily
 
+# Manual backup only. The morning run is done by the scheduled Claude session (see BRIEFING.md):
+# GitHub's cron was hours late, which left the 06:45 briefing with no data.
 on:
-  schedule:
-    - cron: "17 22 * * *"   # 22:17 UTC = 06:17 Beijing
   workflow_dispatch:
 
 permissions:
@@ -23,5 +23,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/news.db digests/
-          git diff --cached --quiet || git commit -m "digest $(date -u +%F)"
+          git diff --cached --quiet || git commit -m "digest $(TZ=Asia/Shanghai date +%F)"
           git push

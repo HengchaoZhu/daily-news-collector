@@ -39,6 +39,17 @@ def test_parse_feed_strips_google_news_source_suffix():
     assert item["source"] == "Reuters" and item["title"] == "Gold hits high"
 
 
+def test_day_window_is_beijing_local(tmp_path, monkeypatch):
+    monkeypatch.delenv("DIGEST_TZ", raising=False)
+    conn = store.connect(str(tmp_path / "t.db"))
+    items = fetch.parse_feed(FEED, RSS)
+    # 22:45 UTC on Nov 5 is 06:45 on Nov 6 in Beijing: it belongs to Nov 6, not Nov 5
+    store.insert_items(conn, items[3:4], datetime(2026, 11, 5, 22, 45, tzinfo=timezone.utc))
+    store.insert_items(conn, items[0:1], datetime(2026, 11, 5, 15, 59, tzinfo=timezone.utc))  # 23:59 Nov 5 local
+    assert [r["title"] for r in store.items_fetched_on(conn, "2026-11-06")] == ["Treasury yields fall"]
+    assert [r["title"] for r in store.items_fetched_on(conn, "2026-11-05")] == ["Fed holds rates steady"]
+
+
 def test_digest_times_are_local_and_titles_cleaned(tmp_path, monkeypatch):
     monkeypatch.setenv("DIGEST_TZ", "Asia/Shanghai")
     assert digest.local_time("2026-11-05T08:00:00+00:00") == "2026-11-05 16:00"
@@ -92,7 +103,7 @@ def test_cli_run_with_mocked_network(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(fetch, "fetch_bytes", lambda url: RSS)
     cli.main(["run", "--config", str(cfg), "--db", str(tmp_path / "n.db"), "--out", str(tmp_path / "d")])
-    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day = digest.today()
     md = (tmp_path / "d" / f"{day}.md").read_text(encoding="utf-8")
     assert "今日新收 2 条" in md  # mock feed + the Google News query return the same RSS
 

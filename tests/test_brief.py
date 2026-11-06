@@ -52,6 +52,24 @@ def test_linkify_relinks_numeric_links_from_an_earlier_pass():
         "x [WSJ](https://u1) · [FT](https://u2) y [7](https://keep)"
 
 
+def test_titles_listing_and_translated_digest(tmp_path):
+    from newscollector import digest
+    from newscollector.normalize import url_fingerprint
+    _, rows = _rows(tmp_path)
+    listing = brief.titles_listing(rows, NAMES, max_per_category=1)
+    lines = listing.splitlines()
+    assert len(lines) == 2 and lines[0].split("\t") == [url_fingerprint("https://news.example.com/yields")[:8], "Mock", "Treasury yields fall"]
+    fp8 = lines[0].split("\t")[0]
+    (tmp_path / "titles").mkdir()
+    (tmp_path / "titles" / "2026-11-05.json").write_text(json.dumps({fp8: "美债收益率下跌", "zzzzzzzz": ""}), encoding="utf-8")
+    titles = brief.load_titles(str(tmp_path), "2026-11-05")
+    assert titles == {fp8: "美债收益率下跌"}
+    md = digest.build_markdown("2026-11-05", rows, NAMES, titles=titles)
+    assert "- [美债收益率下跌](https://news.example.com/yields)" in md
+    assert "[Fed holds rates steady](" in md  # untranslated ones keep the original
+    assert brief.load_titles(str(tmp_path), "2026-11-06") == {}
+
+
 def test_load_index_accepts_old_string_format(tmp_path):
     briefs = tmp_path / "b"
     (briefs / ".index").mkdir(parents=True)
