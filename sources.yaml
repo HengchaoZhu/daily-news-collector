@@ -90,6 +90,4 @@ categories:
       - {name: Variety, url: https://variety.com/feed/}
       - {name: Hollywood Reporter, url: https://www.hollywoodreporter.com/feed/}
       - {name: Deadline, url: https://deadline.com/feed/}
-      - {name: r/CharacterAI, url: https://www.reddit.com/r/CharacterAI/.rss}
-      - {name: r/replika, url: https://www.reddit.com/r/replika/.rss}
     queries: []
